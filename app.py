@@ -1,223 +1,463 @@
 
-import os
-import re
-import shutil
-import tempfile
-import logging
-from urllib.parse import urlparse
-
-from flask import Flask, request, render_template_string, send_file
-import yt_dlp
-
-app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 2000
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("viddrop")
-
-HTML = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#090909">
-<meta name="description" content="VidDrop لتحميل الفيديوهات من الروابط المدعومة">
-<title>VidDrop - تحميل الفيديوهات</title>
-<style>
-* { box-sizing: border-box; }
-body {
-    margin: 0; min-height: 100vh; color: #f7f7f7;
-    background: radial-gradient(ellipse at top, #361015, #090909 55%);
-    font-family: Arial, sans-serif;
-    display: flex; flex-direction: column;
-}
-header { border-bottom: 1px solid #292929; }
-nav {
-    max-width: 950px; margin: auto; padding: 22px;
-    display: flex; justify-content: space-between; align-items: center;
-}
-.logo { font-size: 27px; font-weight: 900; }
-.logo span { color: #ff2438; }
-.tag {
-    color: #bbb; font-size: 11px; border: 1px solid #333;
-    border-radius: 30px; padding: 9px 12px;
-}
-main {
-    width: min(650px, calc(100% - 32px));
-    margin: auto; padding: 65px 0; text-align: center;
-}
-.badge {
-    display: inline-block; border: 1px solid #6c2029;
-    border-radius: 30px; padding: 9px 14px;
-    color: #ff8995; background: #ff24380d; font-size: 12px;
-}
-h1 { font-size: clamp(36px, 8vw, 57px); margin: 25px 0 15px; }
-h1 span { color: #ff2438; }
-.desc { color: #aaa; line-height: 1.9; margin-bottom: 30px; }
-.panel {
-    padding: 27px; border: 1px solid #303030;
-    border-radius: 22px; background: #141414;
-    box-shadow: 0 18px 65px #0006; text-align: right;
-}
-label { display: block; margin-bottom: 12px; font-weight: bold; }
-input {
-    width: 100%; padding: 16px; border: 1px solid #383838;
-    border-radius: 12px; background: #090909; color: white;
-    font-size: 14px; direction: ltr; text-align: left;
-}
-input:focus { outline: 2px solid #ff2438; border-color: transparent; }
-button {
-    width: 100%; margin-top: 14px; padding: 16px;
-    border: 0; border-radius: 12px; background: #ff2438;
-    color: white; font-size: 16px; font-weight: bold; cursor: pointer;
-}
-button:hover { background: #df182c; }
-.hint { color: #999; font-size: 12px; line-height: 1.8; margin-bottom: 0; }
-.notice {
-    margin-top: 18px; padding: 13px; border-radius: 10px;
-    border: 1px solid #633039; color: #ffb6be;
-    background: #ff24380d; line-height: 1.8; overflow-wrap: anywhere;
-}
-footer {
-    text-align: center; padding: 22px; color: #888;
-    border-top: 1px solid #292929; font-size: 12px; line-height: 2;
-}
-@media(max-width: 500px) {
-    nav { padding: 18px 16px; }
-    .panel { padding: 20px; }
-    main { padding: 45px 0; }
-    .tag { font-size: 9px; }
-}
-</style>
-</head>
-<body>
-<header>
-<nav>
-    <div class="logo">Vid<span>Drop</span></div>
-    <div class="tag">VIDEO DOWNLOADER</div>
-</nav>
-</header>
-<main>
-    <div class="badge">منصة واحدة، خانة واحدة</div>
-    <h1>الفيديو ديالك،<br><span>بطريقتك.</span></h1>
-    <p class="desc">لسق رابط الفيديو فالمربع، وضغط على تحميل. الواجهة كتدعم روابط YouTube وTikTok.</p>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#090909">
+  <title>VidDrop - تحميل الفيديوهات</title>
 
-    <section class="panel">
-        <form method="post">
-            <label for="video-url">رابط الفيديو</label>
-            <input id="video-url" name="url" type="url"
-                   placeholder="لسق رابط YouTube أو TikTok هنا"
-                   maxlength="1900" required>
-            <button type="submit">↓ تحميل الفيديو</button>
-        </form>
-        {% if message %}
-        <div class="notice" role="status">{{ message }}</div>
-        {% endif %}
-        <p class="hint">حمّل غير الفيديوهات اللي عندك الحق أو الإذن بتنزيلها. بعض الروابط قد لا تكون مدعومة.</p>
-    </section>
-</main>
-<footer>
-    VidDrop — منصة مستقلة، ماشي تابعة لـ YouTube أو TikTok.
-</footer>
-</body>
-</html>
-"""
-
-
-def get_platform(url):
-    try:
-        parsed = urlparse(url)
-        host = (parsed.hostname or "").lower()
-
-        if parsed.scheme not in ("http", "https"):
-            return None
-
-        if (
-            host == "youtube.com"
-            or host.endswith(".youtube.com")
-            or host == "youtube-nocookie.com"
-            or host.endswith(".youtube-nocookie.com")
-            or host == "youtu.be"
-        ):
-            return "youtube"
-
-        if host == "tiktok.com" or host.endswith(".tiktok.com"):
-            return "tiktok"
-
-        return None
-    except ValueError:
-        return None
-
-
-@app.route("/", methods=["GET", "POST"])
-def home():
-    if request.method == "GET":
-        return render_template_string(HTML, message="")
-
-    url = request.form.get("url", "").strip()
-    platform = get_platform(url)
-
-    if len(url) > 1900 or not platform:
-        return render_template_string(
-            HTML,
-            message="دخل رابط صحيح من YouTube أو TikTok."
-        ), 400
-
-    temp_dir = tempfile.mkdtemp(prefix="viddrop_")
-    output = os.path.join(temp_dir, "video.%(ext)s")
-
-    options = {
-        "outtmpl": output,
-        "format": "best[ext=mp4]/best",
-        "noplaylist": True,
-        "max_filesize": 100 * 1024 * 1024,
-        "socket_timeout": 25,
-        "retries": 1,
-        "quiet": True,
-        "no_warnings": True,
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
 
-    try:
-        with yt_dlp.YoutubeDL(options) as ydl:
-            ydl.download([url])
+    :root {
+      --red: #ff3040;
+      --bg: #090909;
+      --card: #151515;
+      --border: #292929;
+      --text: #ffffff;
+      --muted: #a3a3a3;
+    }
 
-        files = [
-            os.path.join(temp_dir, name)
-            for name in os.listdir(temp_dir)
-            if os.path.isfile(os.path.join(temp_dir, name))
-        ]
+    body {
+      background:
+        radial-gradient(ellipse at top, #351014 0%, transparent 45%),
+        var(--bg);
+      color: var(--text);
+      font-family: Arial, Tahoma, sans-serif;
+      min-height: 100vh;
+      line-height: 1.7;
+    }
 
-        if not files:
-            raise RuntimeError("No video file created")
+    .container {
+      width: min(1000px, 92%);
+      margin: auto;
+    }
 
-        video_path = files[0]
-        extension = os.path.splitext(video_path)[1] or ".mp4"
+    /* Header */
+    header {
+      border-bottom: 1px solid var(--border);
+      background: rgba(9, 9, 9, 0.92);
+    }
 
-        response = send_file(
-            video_path,
-            as_attachment=True,
-            download_name="VidDrop-video" + extension
-        )
+    .navbar {
+      min-height: 76px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+    }
 
-        @response.call_on_close
-        def cleanup():
-            shutil.rmtree(temp_dir, ignore_errors=True)
+    .logo {
+      font-size: 29px;
+      font-weight: 900;
+      letter-spacing: -1px;
+    }
 
-        return response
+    .logo span {
+      color: var(--red);
+    }
 
-    except Exception:
-        logger.exception("Video download failed: %s", platform)
-        shutil.rmtree(temp_dir, ignore_errors=True)
+    .nav-label {
+      color: #ddd;
+      border: 1px solid #333;
+      padding: 6px 13px;
+      border-radius: 30px;
+      font-size: 12px;
+    }
 
-        return render_template_string(
-            HTML,
-            message="ما قدرناش نحملو هاد الفيديو. جرّب رابط آخر متاح للتنزيل."
-        ), 400
+    /* Advertisement spaces */
+    .ad-space {
+      min-height: 90px;
+      margin: 22px auto;
+      padding: 12px;
+      border: 1px dashed #444;
+      border-radius: 13px;
+      background: #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #777;
+      font-size: 13px;
+    }
 
+    .ad-space small {
+      display: block;
+      color: #555;
+      margin-top: 4px;
+    }
 
-if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 3000))
-    )
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 35px 0;
+    }
+
+    .badge {
+      display: inline-block;
+      background: #291014;
+      border: 1px solid #572027;
+      color: #ff9da5;
+      border-radius: 30px;
+      padding: 5px 14px;
+      font-size: 12px;
+    }
+
+    .hero h1 {
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1.3;
+      margin: 18px 0 12px;
+    }
+
+    .hero h1 span {
+      color: var(--red);
+    }
+
+    .hero p {
+      color: var(--muted);
+      max-width: 600px;
+      margin: auto;
+    }
+
+    /* Main download card */
+    .download-card {
+      background: linear-gradient(145deg, #191919, #101010);
+      border: 1px solid #303030;
+      border-radius: 23px;
+      padding: clamp(20px, 5vw, 35px);
+      box-shadow: 0 20px 65px #0008;
+    }
+
+    .platforms {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 25px;
+    }
+
+    .platform {
+      border: 1px solid #333;
+      background: #101010;
+      border-radius: 13px;
+      padding: 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.2s;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+    }
+
+    .platform.active {
+      border-color: var(--red);
+      background: #301115;
+      box-shadow: inset 0 0 0 1px var(--red);
+    }
+
+    .platform:hover {
+      border-color: var(--red);
+    }
+
+    .field-label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .url-input {
+      width: 100%;
+      background: #080808;
+      color: white;
+      border: 1px solid #373737;
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 15px;
+      outline: none;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .url-input:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px #ff30401a;
+    }
+
+    .download-button {
+      display: block;
+      width: 100%;
+      margin-top: 14px;
+      padding: 15px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(100deg, #ff3040, #e51d30);
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .download-button:hover {
+      filter: brightness(1.12);
+      transform: translateY(-2px);
+    }
+
+    .hint {
+      color: #888;
+      font-size: 12px;
+      margin-top: 12px;
+    }
+
+    .status {
+      display: none;
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid #572027;
+      border-radius: 10px;
+      background: #241114;
+      color: #ffd9dc;
+      font-size: 14px;
+    }
+
+    /* Features */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin: 25px 0;
+    }
+
+    .feature {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      padding: 20px;
+    }
+
+    .feature .icon {
+      font-size: 25px;
+      margin-bottom: 8px;
+    }
+
+    .feature h3 {
+      font-size: 15px;
+      margin-bottom: 5px;
+    }
+
+    .feature p {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .notice {
+      color: #777;
+      text-align: center;
+      font-size: 12px;
+      padding: 20px 0;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 25px 0;
+      text-align: center;
+      color: #777;
+      font-size: 12px;
+    }
+
+    footer span {
+      color: var(--red);
+    }
+
+    @media (max-width: 600px) {
+      .navbar {
+        min-height: 65px;
+      }
+
+      .logo {
+        font-size: 25px;
+      }
+
+      .nav-label {
+        font-size: 10px;
+      }
+
+      .features {
+        grid-template-columns: 1fr;
+      }
+
+      .ad-space {
+        min-height: 75px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <div class="container navbar">
+      <div class="logo">Vid<span>Drop</span></div>
+      <div class="nav-label">تحميل الفيديوهات بسهولة</div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- إعلان رقم 1 -->
+    <div class="ad-space">
+      <div>
+        مساحة إعلانية علوية
+        <small>ضع كود الإعلان ديالك هنا</small>
+      </div>
+    </div>
+
+    <section class="hero">
+      <span class="badge">مرحباً بك في VidDrop</span>
+
+      <h1>
+        حمّل الفيديو ديالك
+        <span>بسهولة</span>
+      </h1>
+
+      <p>
+        اختار المنصة، لصق رابط الفيديو، واستمتع بواجهة بسيطة
+        وسريعة على الهاتف والحاسوب.
+      </p>
+    </section>
+
+    <section class="download-card">
+
+      <div class="platforms">
+        <button class="platform active"
+                type="button"
+                data-platform="youtube">
+          ▶ YouTube
+        </button>
+
+        <button class="platform"
+                type="button"
+                data-platform="tiktok">
+          ♪ TikTok
+        </button>
+      </div>
+
+      <form id="downloadForm">
+        <label class="field-label" for="videoUrl">
+          رابط الفيديو
+        </label>
+
+        <input
+          class="url-input"
+          id="videoUrl"
+          type="url"
+          placeholder="https://..."
+          required
+        >
+
+        <button class="download-button" type="submit">
+          ↓ تحميل الفيديو
+        </button>
+
+        <p class="hint">
+          حمّل المحتوى اللي عندك الحق تنزّلو فقط.
+        </p>
+      </form>
+
+      <div class="status" id="status"></div>
+    </section>
+
+    <!-- إعلان رقم 2 -->
+    <div class="ad-space">
+      <div>
+        مساحة إعلانية وسط الصفحة
+        <small>مكان مخصص للإعلانات المتجاوبة</small>
+      </div>
+    </div>
+
+    <section class="features">
+      <article class="feature">
+        <div class="icon">📱</div>
+        <h3>متوافق مع الهاتف</h3>
+        <p>تصميم متجاوب مع مختلف أحجام الشاشات.</p>
+      </article>
+
+      <article class="feature">
+        <div class="icon">⚡</div>
+        <h3>واجهة بسيطة</h3>
+        <p>اختار المنصة ولصق الرابط بكل سهولة.</p>
+      </article>
+
+      <article class="feature">
+        <div class="icon">🔒</div>
+        <h3>استعمال واضح</h3>
+        <p>تعليمات بسيطة ورسائل واضحة للمستخدم.</p>
+      </article>
+    </section>
+
+    <p class="notice">
+      VidDrop خدمة مستقلة وليست تابعة لـ YouTube أو TikTok.
+      يرجى احترام حقوق النشر وشروط المنصات.
+    </p>
+
+    <!-- إعلان رقم 3 -->
+    <div class="ad-space">
+      <div>
+        مساحة إعلانية أسفل الصفحة
+        <small>ضع كود الإعلان ديالك هنا</small>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    © 2026 <span>VidDrop</span> — جميع الحقوق محفوظة
+  </footer>
+
+  <script>
+    let selectedPlatform = "youtube";
+
+    const platformButtons =
+      document.querySelectorAll(".platform");
+
+    const form = document.getElementById("downloadForm");
+    const urlInput = document.getElementById("videoUrl");
+    const statusBox = document.getElementById("status");
+
+    platformButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        platformButtons.forEach(item =>
+          item.classList.remove("active")
+        );
+
+        button.classList.add("active");
+        selectedPlatform = button.dataset.platform;
+
+        urlInput.placeholder =
+          selectedPlatform === "youtube"
+            ? "https://www.youtube.com/watch?v=..."
+            : "https://www.tiktok.com/@user/video/...";
+
+        statusBox.style.display = "none";
+      });
+    });
+
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+
+      const url = urlInput.value.trim();
+
+      if (!url) return;
+
+      statusBox.style.display = "block";
+      statusBox.textContent =
+        "التصميم واجد، ولكن خاص ربط هاد الواجهة بسيرفر التحميل باش يخدم الزر فعلياً.";
+    });
+  </script>
+
+</body>
+</html>
