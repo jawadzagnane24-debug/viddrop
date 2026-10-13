@@ -392,7 +392,7 @@ footer {
 
 <body>
 <header>
-    <a class="logo" href="/">Vid<span>Drop</span></a>
+    <a class="logo" href="/">Sna<span>pTiko</span></a>
 
     <nav>
         <a href="/">الرئيسية</a>
