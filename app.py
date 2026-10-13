@@ -3,21 +3,19 @@ import os
 import re
 import shutil
 import tempfile
-import logging
 from urllib.parse import urlparse
+
 from flask import (
-    Flask, Response, render_template_string,
-    request, send_file
+    Flask, request, render_template_string,
+    send_file, flash, redirect, url_for
 )
 import yt_dlp
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
+app.secret_key = os.environ.get("SECRET_KEY", "viddrop-change-this-key")
 
-SITE_URL = "https://brave-cedar-7334.de.deplexo.com"
-GOOGLE_VERIFICATION = "nwb3Nxl9qGs1VLeuGiOUE4YM2Vw0yh5rxD0dMEXNm8M"
-
-logging.basicConfig(level=logging.INFO)
+DOWNLOAD_DIR = os.path.join(tempfile.gettempdir(), "viddrop")
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 HTML = r"""
 <!DOCTYPE html>
@@ -25,237 +23,251 @@ HTML = r"""
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="google-site-verification" content="{{ verification }}">
-<meta name="description" content="SnapVideo أداة بسيطة للتعامل مع روابط فيديو TikTok المتاحة للتنزيل.">
-<meta name="robots" content="index,follow">
-<meta name="theme-color" content="#0b0b0f">
-<title>{{ title }} | SnapVideo</title>
+<title>{{ title }} - VidDrop</title>
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;background:radial-gradient(ellipse at top,#241018,transparent 48%),#0b0b0f;
- color:#f8f8fc;font-family:Arial,Tahoma,sans-serif;min-height:100vh
-}
-a{color:inherit;text-decoration:none}
-.container{width:min(100% - 32px,900px);margin:auto}
-header,footer{border-color:#2c2c37;border-style:solid}
-header{border-width:0 0 1px}
-.nav{display:flex;justify-content:space-between;align-items:center;padding:17px 0}
-.brand{font-size:23px;font-weight:bold;display:flex;gap:10px;align-items:center}
-.logo{background:#f22e46;padding:10px 13px;border-radius:12px}
-.muted{color:#aaaab8}
-.hero{text-align:center;padding:48px 0 25px}
-h1{font-size:clamp(30px,6vw,46px);margin:18px 0}
-.hero p,.description{color:#aaaab8;line-height:1.9}
-.card{max-width:680px;margin:0 auto 28px;padding:25px;border:1px solid #2c2c37;border-radius:20px;background:#15151c}
-.platform{text-align:center;padding:13px;border:1px solid #f22e46;background:#32121b;border-radius:12px;margin-bottom:20px;font-weight:bold}
-label{display:block;margin-bottom:10px}
-input[type=url]{width:100%;padding:16px;border:1px solid #393946;border-radius:12px;background:#0d0d12;color:white;font-size:15px;direction:ltr;text-align:left}
-button{width:100%;padding:16px;margin-top:14px;border:0;border-radius:12px;background:#f22e46;color:white;font-size:17px;font-weight:bold;cursor:pointer}
-button:hover{background:#d92139}
-.notice,.message{margin-top:17px;padding:13px;border-radius:10px;line-height:1.8;font-size:13px}
-.notice{background:#101016;color:#aaaab8}
-.message{background:#32121b;color:#ffb7c0}
-.features{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin:30px 0}
-.feature{background:#131319;border:1px solid #2c2c37;border-radius:14px;padding:18px}
-.feature p{font-size:13px;line-height:1.8;color:#aaaab8}
-.ad{min-height:70px;display:grid;place-items:center;border:1px dashed #363641;border-radius:12px;color:#777784;margin:22px auto}
-footer{border-width:1px 0 0;margin-top:45px;padding:24px 0;color:#aaaab8;font-size:13px}
-.links{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px}
-@media(max-width:600px){.features{grid-template-columns:1fr}.card{padding:18px}.hero{padding-top:35px}}
+body{margin:0;font-family:Arial,Tahoma,sans-serif;background:#101014;color:#fff;line-height:1.8}
+header{padding:18px 6%;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #292932}
+.logo{font-size:27px;font-weight:bold;color:#ff3158;text-decoration:none}
+nav a{color:#ddd;text-decoration:none;margin:0 8px;font-size:14px}
+nav a:hover{color:#ff3158}
+.hero{text-align:center;padding:65px 18px 45px;background:radial-gradient(ellipse at top,#35131f,#101014 68%)}
+h1{font-size:clamp(30px,5vw,48px);line-height:1.4;margin:0 0 15px}
+.pink{color:#ff3158}
+.subtitle{color:#c5c5cf;max-width:650px;margin:0 auto 28px}
+.form{max-width:720px;margin:0 auto;display:flex;gap:10px;padding:9px;background:#202027;border:1px solid #393943;border-radius:15px}
+.form input{flex:1;min-width:0;background:transparent;border:0;outline:none;color:white;padding:12px;font-size:16px}
+button{background:#ff3158;color:white;border:0;border-radius:10px;padding:13px 22px;font-size:16px;font-weight:bold;cursor:pointer}
+button:hover{background:#e82149}
+.notice{max-width:700px;margin:18px auto 0;color:#aaa;font-size:13px}
+.container{max-width:1000px;margin:auto;padding:35px 18px}
+h2{text-align:center;font-size:28px;margin-bottom:25px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:#1b1b22;border:1px solid #30303a;border-radius:15px;padding:22px}
+.card h3{margin-top:0;color:#ff5474}
+.card p{color:#c4c4cd;margin-bottom:0}
+.steps{max-width:650px;margin:auto}
+.step{padding:15px 18px;margin:12px 0;background:#1b1b22;border-radius:12px}
+.step b{color:#ff5474}
+.content{max-width:800px;margin:35px auto;padding:25px;background:#1b1b22;border-radius:15px}
+.content a{color:#ff6680}
+.alert{max-width:720px;margin:15px auto;padding:12px 16px;border-radius:10px;background:#35212a;color:#ffd9e1}
+footer{text-align:center;padding:25px 12px;border-top:1px solid #292932;color:#999}
+footer a{color:#ccc;text-decoration:none;margin:0 7px}
+@media(max-width:600px){header{flex-direction:column;gap:10px}.form{flex-direction:column}.form input{width:100%}.form button{width:100%}.hero{padding-top:45px}}
 </style>
 </head>
 <body>
 <header>
-<div class="container nav">
-<a class="brand" href="/"><span class="logo">▶</span>SnapVideo</a>
-<a class="muted" href="#how">كيفاش كيخدم؟</a>
-</div>
+<a class="logo" href="/">VidDrop</a>
+<nav>
+<a href="/">الرئيسية</a>
+<a href="/about">من نحن</a>
+<a href="/privacy">الخصوصية</a>
+<a href="/contact">اتصل بنا</a>
+</nav>
 </header>
-<main class="container">
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+{% for message in messages %}
+<div class="alert">{{ message }}</div>
+{% endfor %}
+{% endif %}
+{% endwith %}
+
+{% if page == 'home' %}
 <section class="hero">
-<div class="muted">منصة بسيطة وسهلة الاستعمال</div>
-<h1>{{ heading }}</h1>
-<p>لسق رابط TikTok، واضغط على زر التحميل. واجهة بسيطة ومتوافقة مع الهاتف والكمبيوتر.</p>
+<h1>حمّل فيديوهاتك بسهولة مع <span class="pink">VidDrop</span></h1>
+<p class="subtitle">أداة بسيطة لمعالجة روابط فيديوهات TikTok المتاحة للتحميل. سريعة وسهلة الاستعمال، وبدون الحاجة إلى إنشاء حساب.</p>
+<form class="form" action="/download" method="post">
+<input type="url" name="video_url" placeholder="لسق رابط فيديو TikTok هنا..." required>
+<button type="submit">معالجة الرابط</button>
+</form>
+<p class="notice">استعمل الخدمة فقط للفيديوهات ديالك أو المحتوى اللي عندك الإذن بتحميله. نجاح المعالجة كيعتمد على توفر الفيديو وسياسات المنصة.</p>
 </section>
 
-<div class="ad">مساحة إعلانية</div>
-
-{% if page == "home" %}
-<section class="card">
-<div class="platform">♪ TikTok فقط</div>
-<form action="/download" method="post">
-<label for="video-url">رابط فيديو TikTok</label>
-<input id="video-url" type="url" name="url"
-placeholder="https://www.tiktok.com/..." required maxlength="2000">
-<button type="submit">↓ تحميل الفيديو</button>
-</form>
-{% if error %}<div class="message" role="alert">{{ error }}</div>{% endif %}
-<div class="notice">
-استعمل الخدمة مع الفيديوهات التي تملكها أو لديك إذن بتنزيلها، واحترم حقوق النشر وشروط TikTok.
-بعض الروابط قد لا تكون متاحة.
+<section class="container">
+<h2>علاش تختار <span class="pink">VidDrop</span>؟</h2>
+<div class="cards">
+<div class="card"><h3>⚡ سهل الاستعمال</h3><p>لسق الرابط واضغط على الزر باش تبدأ معالجة الفيديو.</p></div>
+<div class="card"><h3>📱 مناسب للهاتف</h3><p>واجهة كتخدم على الهاتف والكمبيوتر.</p></div>
+<div class="card"><h3>🔒 بدون حساب</h3><p>ما محتاجش تنشئ حساب باش تستعمل الواجهة.</p></div>
 </div>
 </section>
 
-<section class="features">
-<article class="feature"><strong>⚡ واجهة سهلة</strong><p>خطوات واضحة وبسيطة.</p></article>
-<article class="feature"><strong>📱 مناسب للهاتف</strong><p>تصميم متجاوب مع مختلف الشاشات.</p></article>
-<article class="feature"><strong>♪ TikTok</strong><p>مصمم للتعامل مع روابط TikTok فقط.</p></article>
-</section>
-
-<section id="how">
-<h2>كيفاش تستعمل SnapVideo؟</h2>
-<p class="description">1. نسخ رابط فيديو TikTok. 2. لصق الرابط في الخانة. 3. الضغط على تحميل الفيديو وانتظار النتيجة. قد تفشل بعض الروابط بسبب قيود المنصة.</p>
+<section class="container">
+<h2>كيفاش تستعمل الموقع؟</h2>
+<div class="steps">
+<div class="step"><b>1.</b> نسخ رابط الفيديو اللي عندك الحق تحمّلو.</div>
+<div class="step"><b>2.</b> لسق الرابط فالمربع اللي فوق.</div>
+<div class="step"><b>3.</b> ضغط على «معالجة الرابط» وانتظر النتيجة.</div>
+</div>
 </section>
 {% else %}
-<section class="card">
-<h2>{{ heading }}</h2>
-<p class="description">{{ body }}</p>
-</section>
+<div class="content">
+<h1 style="font-size:30px">{{ heading }}</h1>
+{{ body|safe }}
+</div>
 {% endif %}
-<div class="ad">مساحة إعلانية</div>
-</main>
-<footer><div class="container">
-<strong>SnapVideo</strong><p>© 2026 SnapVideo</p>
-<div class="links">
-<a href="/">الرئيسية</a><a href="/about">من نحن</a>
-<a href="/privacy">سياسة الخصوصية</a><a href="/contact">اتصل بنا</a>
-<a href="/sitemap.xml">خريطة الموقع</a>
-</div></div></footer>
+
+<footer>
+<p>© {{ year }} VidDrop — جميع الحقوق محفوظة</p>
+<a href="/">الرئيسية</a>
+<a href="/terms">شروط الاستخدام</a>
+<a href="/privacy">الخصوصية</a>
+<a href="/contact">اتصل بنا</a>
+</footer>
 </body>
 </html>
 """
 
-def render_page(page="home", heading="تحميل فيديوهات TikTok",
-                body="", error=None, title="تحميل TikTok"):
-    return render_template_string(
-        HTML, page=page, heading=heading, body=body,
-        error=error, title=title,
-        verification=GOOGLE_VERIFICATION
-    )
 
-def allowed_tiktok_url(url):
+def valid_tiktok_url(value):
     try:
-        parsed = urlparse(url)
+        parsed = urlparse(value.strip())
         host = (parsed.hostname or "").lower()
-    except ValueError:
+        allowed_hosts = {
+            "tiktok.com", "www.tiktok.com", "m.tiktok.com",
+            "vm.tiktok.com", "vt.tiktok.com"
+        }
+        return (
+            parsed.scheme == "https"
+            and host in allowed_hosts
+            and parsed.username is None
+            and parsed.password is None
+        )
+    except Exception:
         return False
 
-    if parsed.scheme not in ("http", "https"):
-        return False
 
-    if not re.fullmatch(r"[a-z0-9.-]+", host):
-        return False
-
-    domains = (
-        "tiktok.com",
-        "tiktokv.com",
-        "tiktokcdn.com",
+def page(title, heading="", body="", page_name="info"):
+    return render_template_string(
+        HTML,
+        title=title,
+        heading=heading,
+        body=body,
+        page=page_name,
+        year=__import__("datetime").datetime.now().year
     )
-    return any(host == d or host.endswith("." + d) for d in domains)
+
 
 @app.route("/")
 def home():
-    return render_page()
-
-@app.route("/about")
-def about():
-    return render_page(
-        page="info", heading="من نحن", title="من نحن",
-        body="SnapVideo واجهة للتعامل مع روابط TikTok المتاحة. لا ندّعي ملكية الفيديوهات الموجودة على المنصة."
+    return render_template_string(
+        HTML, title="تحميل فيديوهات TikTok",
+        heading="", body="", page="home",
+        year=__import__("datetime").datetime.now().year
     )
 
-@app.route("/privacy")
-def privacy():
-    return render_page(
-        page="info", heading="سياسة الخصوصية", title="سياسة الخصوصية",
-        body="يتم إرسال رابط الفيديو الذي تدخله لمعالجة طلبك. قد تحتفظ الاستضافة بسجلات تقنية. لا تدخل معلومات شخصية حساسة. يجب تحديث هذه السياسة إذا أضفت خدمات تحليل أو إعلانات."
-    )
-
-@app.route("/contact")
-def contact():
-    return render_page(
-        page="info", heading="اتصل بنا", title="اتصل بنا",
-        body="للاستفسارات أو الإبلاغ عن مشكلة، أضف وسيلة اتصال رسمية خاصة بصاحب الموقع."
-    )
-
-@app.route("/robots.txt")
-def robots():
-    return Response(
-        f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml\n",
-        mimetype="text/plain"
-    )
-
-@app.route("/sitemap.xml")
-def sitemap():
-    paths = ("/", "/about", "/privacy", "/contact")
-    entries = "".join(
-        f"<url><loc>{SITE_URL}{path}</loc></url>" for path in paths
-    )
-    xml = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-        + entries + '</urlset>'
-    )
-    return Response(xml, mimetype="application/xml")
 
 @app.route("/download", methods=["POST"])
 def download():
-    video_url = request.form.get("url", "").strip()
+    video_url = request.form.get("video_url", "").strip()
 
-    if len(video_url) > 2000:
-        return render_page(error="الرابط طويل بزاف.")
+    if not valid_tiktok_url(video_url):
+        flash("عافاك دخل رابط TikTok صحيح كيبدا بـ https://")
+        return redirect(url_for("home"))
 
-    if not allowed_tiktok_url(video_url):
-        return render_page(error="دخل رابط TikTok صحيح.")
-
-    temp_dir = tempfile.mkdtemp(prefix="snapvideo_")
+    # مجلد مؤقت منفصل لكل عملية تحميل
+    job_dir = tempfile.mkdtemp(prefix="viddrop_", dir=DOWNLOAD_DIR)
 
     options = {
         "format": "best[ext=mp4]/best",
-        "outtmpl": os.path.join(temp_dir, "video.%(ext)s"),
+        "outtmpl": os.path.join(job_dir, "%(id)s.%(ext)s"),
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        "socket_timeout": 30,
+        "socket_timeout": 20,
+        "retries": 1,
         "max_filesize": 100 * 1024 * 1024,
+        "restrictfilenames": True,
     }
 
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
-            ydl.download([video_url])
+            info = ydl.extract_info(video_url, download=True)
+            filename = ydl.prepare_filename(info)
 
-        files = [
-            os.path.join(temp_dir, name)
-            for name in os.listdir(temp_dir)
-            if os.path.isfile(os.path.join(temp_dir, name))
-        ]
+        if not os.path.isfile(filename):
+            candidates = [
+                os.path.join(job_dir, name)
+                for name in os.listdir(job_dir)
+                if os.path.isfile(os.path.join(job_dir, name))
+            ]
+            if not candidates:
+                raise RuntimeError("ما تلقاش ملف الفيديو بعد المعالجة.")
+            filename = candidates[0]
 
-        if not files:
-            raise RuntimeError("No output file created")
-
-        file_path = max(files, key=os.path.getsize)
-        filename = "SnapVideo" + os.path.splitext(file_path)[1]
-
-        response = send_file(
-            file_path, as_attachment=True, download_name=filename
+        return send_file(
+            filename,
+            as_attachment=True,
+            download_name=os.path.basename(filename),
+            mimetype="application/octet-stream"
         )
-        response.call_on_close(
-            lambda: shutil.rmtree(temp_dir, ignore_errors=True)
-        )
-        return response
 
     except Exception:
-        app.logger.exception("TikTok download failed")
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        return render_page(
-            error="تعذر تنزيل هذا الفيديو. جرّب رابطاً عمومياً آخر؛ بعض الفيديوهات لا يمكن تنزيلها."
-        )
+        shutil.rmtree(job_dir, ignore_errors=True)
+        flash("ما قدرناش نعالجو هاد الرابط. تأكد أن الفيديو متاح وجرب من جديد.")
+        return redirect(url_for("home"))
 
-@app.errorhandler(413)
-def too_large(_error):
-    return render_page(error="حجم الطلب كبير بزاف."), 413
+
+@app.route("/about")
+def about():
+    return page(
+        "من نحن",
+        "من نحن",
+        "<p>VidDrop واجهة بسيطة لتسهيل معالجة روابط الفيديوهات المتاحة للتحميل.</p>"
+        "<p>الخدمة غير مضمونة لجميع الروابط، وقد تتوقف إذا تغيرت المنصة أو طريقة الوصول للفيديو.</p>"
+    )
+
+
+@app.route("/privacy")
+def privacy():
+    return page(
+        "سياسة الخصوصية",
+        "سياسة الخصوصية",
+        "<p>ما تدخلش معلومات شخصية حساسة فالموقع.</p>"
+        "<p>الرابط اللي كتدخلو كيتعالج باش نحاولو نجيبو الفيديو. خاص صاحب الموقع يراجع إعدادات الاستضافة والسجلات والملفات المؤقتة قبل النشر العمومي.</p>"
+    )
+
+
+@app.route("/terms")
+def terms():
+    return page(
+        "شروط الاستخدام",
+        "شروط الاستخدام",
+        "<p>استعمل VidDrop غير للمحتوى ديالك أو المحتوى اللي عندك إذن قانوني بتحميله.</p>"
+        "<p>ممنوع استعمال الخدمة للوصول إلى محتوى خاص أو تجاوز قيود الوصول، واحترم حقوق النشر وشروط المنصة.</p>"
+    )
+
+
+@app.route("/contact")
+def contact():
+    return page(
+        "اتصل بنا",
+        "اتصل بنا",
+        "<p>للتواصل مع إدارة الموقع، زِد عنوان بريد إلكتروني خاص بالمشروع هنا قبل نشر الموقع.</p>"
+    )
+
+
+@app.route("/health")
+def health():
+    return {"status": "ok", "service": "VidDrop"}
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return page(
+        "الصفحة غير موجودة",
+        "الصفحة غير موجودة",
+        '<p>الصفحة اللي كتقلب عليها ما كايناش.</p><p><a href="/">رجع للرئيسية</a></p>'
+    ), 404
+
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8080"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", "8080")),
+        debug=False
+    )
