@@ -420,10 +420,11 @@ footer {
 </h1>
 
 
-    <p class="subtitle">
-        طريقة سهلة لمعالجة روابط الفيديوهات المتاحة.
-        لسق الرابط ديالك وجرب.
-    </p>
+    
+<p class="subtitle">
+    نزّل فيديوهات TikTok بسهولة، بدون علامة مائية وبجودة عالية، لسق الرابط ديالك وجرب.
+</p>
+
 
     <form class="download-box" action="/download" method="post"
           onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='جاري المعالجة...';">
