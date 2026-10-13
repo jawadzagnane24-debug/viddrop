@@ -1,15 +1,16 @@
 
-FROM python:3.11-slim
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-ENV HOME=/tmp
-ENV PORT=3000
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY app.py .
 
-RUN pip install --no-cache-dir flask yt-dlp gunicorn
+EXPOSE 8080
 
-EXPOSE 3000
-
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} app:app"]
+CMD ["python", "app.py"]
