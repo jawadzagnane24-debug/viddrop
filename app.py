@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 from flask import (
     Flask, request, redirect, url_for,
-    render_template_string, send_file, flash
+    render_template_string, send_file, flash Response
 )
 import yt_dlp
 
@@ -495,6 +495,49 @@ def contact():
              "الذي سيضيفه صاحب الموقع هنا قبل الإطلاق.</p>"
     )
 
+
+    ]
+
+    xml_urls = "".join(
+        f"<url><loc>{base_url}{page}</loc></url>"
+        for page in pages
+    )
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{xml_urls}"
+        "</urlset>"
+    )
+
+    return Response(xml, mimetype="application/xml")
+
+
+@app.route("/sitemap.xml")
+def sitemap():
+    base_url = request.url_root.rstrip("/")
+
+    pages = [
+        "/",
+        "/about",
+        "/privacy",
+        "/terms",
+        "/contact",
+    ]
+
+    xml_urls = "".join(
+        f"<url><loc>{base_url}{page}</loc></url>"
+        for page in pages
+    )
+
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{xml_urls}"
+        "</urlset>"
+    )
+
+    return Response(xml, mimetype="application/xml")
 
 @app.route("/health")
 def health():
