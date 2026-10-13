@@ -392,6 +392,21 @@ footer {
 
 <body>
 <header>
+<div class="language-selector">
+  <label for="language">🌐 اللغة:</label>
+  <select id="language" onchange="changeLanguage(this.value)">
+    <option value="ar">🇲🇦 العربية</option>
+    <option value="fr">🇫🇷 Français</option>
+  </select>
+</div>
+
+<script>
+function changeLanguage(lang) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("lang", lang);
+  window.location.href = url.toString();
+}
+</script>
     <a class="logo" href="/">Sna<span>pTiko</span></a>
 
     <nav>
