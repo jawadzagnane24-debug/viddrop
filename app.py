@@ -413,10 +413,12 @@ footer {
 {% if page == "home" %}
 <main>
 <section class="hero">
-    <h1>
-        حمّل فيديوهات TikTok مع<br>
-        <span class="pink">SnapTiko</span>
-    </h1>
+
+<h1>
+    تنزيل فيديوهات TikTok<br>
+    <span class="pink">بدون علامة مائية وبدقة عالية</span>
+</h1>
+
 
     <p class="subtitle">
         طريقة سهلة لمعالجة روابط الفيديوهات المتاحة.
