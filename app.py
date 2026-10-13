@@ -44,7 +44,7 @@ HTML = r"""
 <meta name="theme-color" content="#ffffff">
 
 <meta name="description"
-content="SnapTiko أداة بسيطة لمعالجة روابط فيديوهات TikTok المتاحة للتحميل.">
+content="SnapTiko أداة سهلة لمعالجة روابط فيديوهات TikTok المتاحة. استعملها من الهاتف أو الحاسوب، وحمّل فقط المحتوى اللي عندك الحق تستعمله.">
 
 <meta name="google-site-verification"
 content="nwb3Nxl9qGs1VLeuGiOUE4YM2Vw0yh5rxD0dMEXNm8M" />
