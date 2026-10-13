@@ -44,7 +44,7 @@ HTML = r"""
 <meta name="theme-color" content="#ffffff">
 
 <meta name="description"
-content="VidDrop أداة بسيطة لمعالجة روابط فيديوهات TikTok المتاحة للتحميل.">
+content="SnapTiko أداة بسيطة لمعالجة روابط فيديوهات TikTok المتاحة للتحميل.">
 
 <meta name="google-site-verification"
 content="nwb3Nxl9qGs1VLeuGiOUE4YM2Vw0yh5rxD0dMEXNm8M" />
@@ -53,7 +53,7 @@ content="nwb3Nxl9qGs1VLeuGiOUE4YM2Vw0yh5rxD0dMEXNm8M" />
 
 <link rel="canonical" href="{{ canonical }}">
 
-<title>{{ title }} | VidDrop</title>
+<title>{{ title }} | SnapTiko</title>
 
 <style>
 :root {
@@ -415,7 +415,7 @@ footer {
 <section class="hero">
     <h1>
         حمّل فيديوهات TikTok مع<br>
-        <span class="pink">VidDrop</span>
+        <span class="pink">SnapTiko</span>
     </h1>
 
     <p class="subtitle">
@@ -560,7 +560,7 @@ footer {
         <a href="/contact">اتصل بنا</a>
     </div>
 
-    <p>© {{ year }} VidDrop</p>
+    <p>© {{ year }} SnapTiko</p>
 </footer>
 </body>
 </html>
@@ -723,7 +723,7 @@ def about():
         "من نحن",
         heading="من نحن",
         body=(
-            "<p>VidDrop مشروع مستقل لمعالجة روابط فيديوهات "
+            "<p>SnapTiko مشروع مستقل لمعالجة روابط فيديوهات "
             "TikTok العامة المتاحة.</p>"
             "<p>الخدمة ما كتضمنش أن جميع الروابط غادي تخدم، "
             "وما عندهاش علاقة رسمية بـ TikTok.</p>"
@@ -769,7 +769,7 @@ def contact():
         "اتصل بنا",
         heading="اتصل بنا",
         body=(
-            "<p>تواصل مع إدارة VidDrop عبر البريد الإلكتروني "
+            "<p>تواصل مع إدارة SnapTiko عبر البريد الإلكتروني "
             "الذي يضيفه صاحب الموقع هنا قبل الإطلاق.</p>"
         ),
         path="/contact",
@@ -811,7 +811,7 @@ def sitemap():
 
 @app.route("/health")
 def health():
-    return {"status": "ok", "service": "VidDrop"}
+    return {"status": "ok", "service": "SnapTiko"}
 
 
 @app.errorhandler(404)
