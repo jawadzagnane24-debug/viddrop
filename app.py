@@ -511,18 +511,7 @@ def contact():
     )
 
     return Response(xml, mimetype="application/xml")
-
-
-@app.route("/sitemap.xml")
-def sitemap():
-    base_url = request.url_root.rstrip("/")
-
-    pages = [
-        "/",
-        "/about",
-        "/privacy",
-        "/terms",
-        "/contact",
+    
     ]
 
     xml_urls = "".join(
