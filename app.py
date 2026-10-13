@@ -24,7 +24,7 @@ app.secret_key = os.environ.get(
     "SECRET_KEY", "change-this-secret-key-before-production"
 )
 
-DOWNLOAD_DIR = os.path.join(tempfile.gettempdir(), "viddrop")
+DOWNLOAD_DIR = os.path.join(tempfile.gettempdir(), "SnapTiko")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 SITE_URL = os.environ.get(
@@ -459,7 +459,7 @@ footer {
 </section>
 
 <section class="section" id="features">
-    <h2>علاش تستعمل <span class="pink">VidDrop</span>؟</h2>
+    <h2>علاش تستعمل <span class="pink">SnapTiko</span>؟</h2>
     <p class="section-intro">
         واجهة بسيطة باش تسهّل عليك التعامل مع روابط الفيديو.
     </p>
@@ -549,7 +549,7 @@ footer {
 {% endif %}
 
 <footer>
-    <a class="logo" href="/">Vid<span>Drop</span></a>
+    <a class="logo" href="/">Sna<span>pTiko</span></a>
     <p>أداة بسيطة لمعالجة روابط الفيديوهات المتاحة.</p>
 
     <div class="footer-links">
