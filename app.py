@@ -20,6 +20,12 @@ from flask import (
 import yt_dlp
 
 app = Flask(__name__)
+@app.route("/favicon.png")
+def favicon():
+    return send_file(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "favicon.png"),
+        mimetype="image/png"
+)
 app.secret_key = os.environ.get(
     "SECRET_KEY", "change-this-secret-key-before-production"
 )
@@ -42,6 +48,7 @@ HTML = r"""
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
+<link rel="icon" type="image/png" href="/favicon.png">
 
 <meta name="description"
 content="SnapTiko أداة سهلة لمعالجة روابط فيديوهات TikTok المتاحة. استعملها من الهاتف أو الحاسوب، وحمّل فقط المحتوى اللي عندك الحق تستعمله.">
