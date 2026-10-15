@@ -23,10 +23,16 @@ app = Flask(__name__)
 
 @app.route("/favicon.png")
 def favicon():
-    favicon_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "favicon.png"
-    )
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    favicon_path = os.path.join(base_dir, "favicon.png")
+
+    return {
+        "file_exists": os.path.isfile(favicon_path),
+        "file_path": favicon_path,
+        "app_directory_files": os.listdir(base_dir),
+    }
+    
 
     if not os.path.isfile(favicon_path):
         return Response("Favicon not found", status=404)
