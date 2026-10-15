@@ -20,11 +20,22 @@ from flask import (
 import yt_dlp
 
 app = Flask(__name__)
+
 @app.route("/favicon.png")
 def favicon():
+    favicon_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "favicon.png"
+    )
+
+    if not os.path.isfile(favicon_path):
+        return Response("Favicon not found", status=404)
+
     return send_file(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "favicon.png"),
+        favicon_path,
         mimetype="image/png"
+)
+                        
 )
 app.secret_key = os.environ.get(
     "SECRET_KEY", "change-this-secret-key-before-production"
