@@ -33,10 +33,8 @@ def favicon():
 
     return send_file(
         favicon_path,
-        mimetype="image/png"
-)
-                        
-)
+        mimetype="image/png
+    )
 app.secret_key = os.environ.get(
     "SECRET_KEY", "change-this-secret-key-before-production"
 )
