@@ -57,7 +57,7 @@ HTML = r"""
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#ffffff">
-<link rel="icon" type="image/png" href="{{ url_for('favicon') }}?v=2">
+<link rel="icon" type="image/png" href="{{ url_for('favicon') }}?v=3">
 
 <meta name="description"
 content="SnapTiko أداة سهلة لمعالجة روابط فيديوهات TikTok المتاحة. استعملها من الهاتف أو الحاسوب، وحمّل فقط المحتوى اللي عندك الحق تستعمله.">
