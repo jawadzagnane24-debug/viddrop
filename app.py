@@ -26,8 +26,12 @@ def favicon():
     favicon_path = os.path.join(base_dir, "favicon.png")
 
     if not os.path.isfile(favicon_path):
-        return "Favicon not found", 404
-
+        return {
+            "error": "Favicon not found",
+            "app_directory": base_dir,
+            "files": os.listdir(base_dir)
+        }, 404
+        
     return send_file(favicon_path, mimetype="image/png")
 
 app.secret_key = os.environ.get(
