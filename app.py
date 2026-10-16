@@ -29,26 +29,17 @@ def favicon():
     if not os.path.isfile(favicon_path):
         return Response("Favicon not found", status=404)
 
-    return send_file(
-        favicon_path,
-        mimetype="image/png"
-    )
-    
-    
-    
-
-    if not os.path.isfile(favicon_path):
-        return Response("Favicon not found", status=404)
-
     
     return send_file(
         favicon_path,
         mimetype="image/png"
     )
-    
+
+
 app.secret_key = os.environ.get(
     "SECRET_KEY", "change-this-secret-key-before-production"
 )
+
 
 DOWNLOAD_DIR = os.path.join(tempfile.gettempdir(), "SnapTiko")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
